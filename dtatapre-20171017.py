@@ -3,6 +3,8 @@ from matplotlib import pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 import numpy as np
 import json
+import random
+#-----------------------------------------------------------------------------------
 #将时间参数从list格式转为数字量
 def taketime_data(timelist):
     #numbers = map(int, numbers)-python2.x
@@ -23,6 +25,7 @@ def taketime_data(timelist):
     #int_time_list=[Date_year,Date_monthtime,Date_daytime_float,Date_daytime_int]
     int_time_list=[Date_monthtime_int,Date_daytime_int,Date_daytime_float]
     return int_time_list
+#-----------------------------------------------------------------------------------
 #对每小时统计次数进行分级评价处理函数
 def defineRank(conutTimes):
     #将需求热度分为5个等级，0-3为最低，大于24则为最高高需求
@@ -36,6 +39,7 @@ def defineRank(conutTimes):
         return 3
     else:
         return 4
+# -----------------------------------------------------------------------------------
 #antinghuiParkingPlace文件数据开始时间为2017年4月2日（星期日）,从json文件中提取数据
 with open('E:\\deeplearnning\\ex-date\\eachshop\\antinghuiParkingPlace.json','r') as jsonF:
     data_json=json.load(jsonF)
@@ -61,15 +65,18 @@ for i in range(len(data_json['inOrderList'])):
     else:
         inStartTime.append(list1[0])
         inOrderList[list1[0]]=[list1[1]]
+# -----------------------------------------------------------------------------------
 #创建取车日期表
 outOrderTimeList=sorted(outOrderList.keys())
 #创建还车日期表
 inOrderTimeList =sorted(inOrderList.keys())
 #将一天时间按照小时来分割，从0到23
 Y_dailyTime=np.arange(0,24,1)
+#取还车数量的一维数组
 X_outOrderTimeList=np.arange(1,len(outOrderTimeList)+1,1)
 X_inOrderTimeList=np.arange(1,len(inOrderTimeList)+1,1)
 #X_outOrderTimeList=np.array(outOrderTimeList)
+#-----------------------------------------------------------------------------------
 #统计每天每小时的取车次数
 outCardailyCountList=[]
 for outTime in outOrderTimeList:
@@ -86,20 +93,62 @@ for inTime in inOrderTimeList:
         countlist.append(inOrderList[inTime].count(inhour))
     inCardailyCountList.extend(countlist)
 Z_indailyCountArray=np.array(inCardailyCountList).reshape(len(inOrderTimeList),24)
-
+#-----------------------------------------------------------------------------------
+#采用蒙特卡洛方法提取各个时间点的还车辆数
+inCarDailyRandmCount=np.arange(0,24,1)
+#采样次数
+cyTimes=500
+for i in range(0,24):
+    for j in range(cyTimes):
+        randmDate =int(random.uniform(0, len(inOrderTimeList) - 1))
+        if j==0:
+            inCarDailyRandmCount[i] = Z_indailyCountArray[randmDate][i]
+        else:
+            inCarDailyRandmCount[i]=inCarDailyRandmCount[i] +Z_indailyCountArray[randmDate][i]
+    inCarDailyRandmCount[i]=inCarDailyRandmCount[i]/cyTimes
+#采用蒙特卡洛方法提取各个时间点的还车辆数
+outCarDailyRandmCount=np.arange(0,24,1)
+for i in range(0,24):
+    for j in range(cyTimes):
+        randmDate =int(random.uniform(0, len(outOrderTimeList) - 1))
+        if j==0:
+            outCarDailyRandmCount[i] = Z_outdailyCountArray[randmDate][i]
+        else:
+            outCarDailyRandmCount[i]=outCarDailyRandmCount[i] +Z_outdailyCountArray[randmDate][i]
+    outCarDailyRandmCount[i]=outCarDailyRandmCount[i]/cyTimes
+print inCarDailyRandmCount-outCarDailyRandmCount
+#-----------------------------------------------------------------------------------
 #绘制图像
 X,Y=np.meshgrid(Y_dailyTime,X_inOrderTimeList)
 fig=plt.figure()
-#ax=Axes3D(fig)
-ax=fig.add_subplot(121,projection='3d')
-ax.plot_surface(X, Y, Z_indailyCountArray, rstride=1, cstride=1, cmap='rainbow')
-#绘制登高图
-ax=fig.add_subplot(122,projection='3d')
-ax.contourf(X, Y, Z_indailyCountArray, zdir='z', offset=-2, cmap='rainbow')
-#设定坐标轴
-ax.set_xlabel('dailyhour')
-ax.set_ylabel('date')
-ax.set_zlabel('everyhour-inCarNumber')
-#通过设定角度来查看显示图，第一个值表示俯仰角度，第二值表示偏转角度
-ax.view_init(20,270)
+# ax=fig.add_subplot(131,projection='3d')
+# ax.plot_surface(X, Y, Z_indailyCountArray, rstride=1, cstride=1, cmap='rainbow')
+# #设定坐标轴
+# ax.set_xlabel('dailyhour')
+# ax.set_ylabel('date')
+# ax.set_zlabel('everyhour-inCarNumber')
+# #绘制登高图
+# ax=fig.add_subplot(132,projection='3d')
+# ax.contourf(X, Y, Z_indailyCountArray, zdir='z', offset=-2, cmap='rainbow')
+# #设定坐标轴
+# ax.set_xlabel('dailyhour')
+# ax.set_ylabel('date')
+# ax.set_zlabel('everyhour-inCarNumber')
+# #通过设定角度来查看显示图，第一个值表示俯仰角度，第二值表示偏转角度
+# ax.view_init(20,270)
+#绘制蒙特卡洛选取的每天各个时段的去还车数量
+#绘制对比图
+ax=fig.add_subplot(121)
+ax.plot(Y_dailyTime,inCarDailyRandmCount,'go-', label='line 1', linewidth=2)
+ax.hold(True)
+ax.plot(Y_dailyTime,outCarDailyRandmCount,'ro--',label='line 2',linewidth=2)
+ax.set_xlabel('time')
+ax.set_ylabel('CarNumber')
+ax.grid(True)
+#绘制网点车辆增减车辆数量图
+ax=fig.add_subplot(122)
+ax.plot(Y_dailyTime,inCarDailyRandmCount-outCarDailyRandmCount,'bo-',label='line 2',linewidth=2)
+ax.set_xlabel('time')
+ax.set_ylabel('CarNumber')
+ax.grid(True)
 plt.show()
